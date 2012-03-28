@@ -37,14 +37,6 @@ Emacs Pry is package that provides support for running Pry within in Emacs.
 
 * https://github.com/jacott/Enhanced-Ruby-Mode
 
-### Development
-
-Testing parser:
-
-ruby -I. test/test_erm_buffer.rb
-
-Sorry, no test suite for ruby-mode.el
-
 ### Thanks
 
 https://github.com/banister for the pry gem!
