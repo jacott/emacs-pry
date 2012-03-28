@@ -1,0 +1,11 @@
+* Re-aligning process-mark with point using left and right if on input line. Otherwise show gost cursor (see 'vcursor)
+
+* Better spliting of shell arglist strings to list/array
+
+* Breakpoint in pry
+   Use buffer properties to mark; add symbol like gdb
+
+* require_relative interception support for pry
+   And load support?
+
+* exception highlighting and clickable
