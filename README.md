@@ -21,8 +21,8 @@ You can use the pointer or other emacs commands to move the cursor on the comman
 
 ```bash
 $ gem install pry
-$ mkdir ~/.emacs.d/vendor
-$  ~/.emacs.d/vendor
+$ mkdir -p ~/.emacs.d/vendor
+$ cd ~/.emacs.d/vendor
 $ git clone git@github.com:jacott/emacs-pry
 ```
 
