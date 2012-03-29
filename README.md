@@ -7,19 +7,21 @@
 
 ### Description
 
-Emacs Pry is package that provides support for running Pry within in Emacs.
+Emacs Pry is package that provides support for running [Pry](https://github.com/pry/pry) within in Emacs.
 
 ### Features
 
-`run-pry` starts a pry REPL inside a modified `term-mode` buffer.
+`run-pry` starts a Pry REPL inside a modified `term-mode` buffer.
 
 `pry-intercept` command allows for quick debuging into a test.
 
+You can use the pointer or other emacs commands to move the cursor on the command line and Pry will be aligned with the new position.
+
 ### Install
 
-* git clone git@github.com:jacott/emacs-pry
+* `gem install pry`
 
-* gem install pry
+* `git clone git@github.com:jacott/emacs-pry`
 
 * Add the following to your `.emacs` or `init.el` file
 
@@ -39,4 +41,4 @@ Emacs Pry is package that provides support for running Pry within in Emacs.
 
 ### Thanks
 
-https://github.com/banister for the pry gem!
+https://github.com/banister for the Pry gem!

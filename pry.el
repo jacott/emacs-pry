@@ -32,17 +32,26 @@
   "Program invoked by the `run-pry' command."
   :group 'eri)
 
-(defvar pry-mode-map nil "Keymap used in pry mode.")
+(defvar pry-raw-map nil "Keymap used in pry mode.")
 
 (defvar pry-intercept-command nil "Keymap used in pry mode.")
 
-(defvar pry-target-buffer nil "Last target buffer of pry-intercept.")
-(defvar pry-target-point nil "Last target buffer point of pry-intercept.")
+(defvar pry-target-mark nil "Last target of pry-intercept.")
 
+(defvar pry-cursor-overlay nil "Overlay for process-mark location using `vcursor' face")
 
-(if pry-mode-map
+(if pry-raw-map
     nil
-  (setq pry-mode-map (copy-keymap term-mode-map)))
+  (setq pry-raw-map (copy-keymap term-raw-map))
+  (define-key pry-raw-map [remap self-insert-command] 'pry-send-raw)
+  (define-key pry-raw-map [remap term-send-raw] 'pry-send-raw)
+  (define-key pry-raw-map [remap term-send-right] 'pry-send-right)
+  (define-key pry-raw-map [remap term-send-left] 'pry-send-left)
+  (define-key pry-raw-map [remap term-send-del] 'pry-send-del)
+  (define-key pry-raw-map [remap term-send-backspace] 'pry-send-backspace)
+  (define-key pry-raw-map [remap term-send-raw-meta] 'pry-send-raw-meta))
+
+
 
 (defun run-pry (cmd)
   "Run an inferior Pry process, input and output via buffer *pry*.
@@ -96,20 +105,52 @@ of `pry-program-name').
 (defun pry-filter (proc response)
   (term-emulate-terminal proc response))
 
+(defun pry-send-raw ()
+  "Runs `term-send-raw' but first tries to align process-mark to point"
+  (interactive)
+  (pry-align-process-mark)
+  (term-send-raw))
+
+(defun pry-align-process-mark ()
+  (let* ((pt (marker-position (process-mark (get-buffer-process (current-buffer)))))
+         (readline-pos (save-excursion
+                         (goto-char (point-max))
+                         (forward-line (if (looking-back "^$" (- (point-max) 2)) -1 0))
+
+                         (when (looking-at term-prompt-regexp)
+                           (goto-char (match-end 0)))
+                         (if (>= pt (point))
+                             (point)
+                           nil))))
+    (unless (or (eq pt (point)) (not readline-pos) (< (point) readline-pos))
+      (if (< pt (point))
+          (term-send-raw-string (format "\e%d\eOC" (- (point) pt)))
+        (term-send-raw-string (format "\e%d\eOD" (- pt (point))))))))
+
+(defun pry-send-right () (interactive) (pry-align-process-mark) (term-send-right))
+(defun pry-send-left  () (interactive) (pry-align-process-mark) (term-send-left))
+(defun pry-send-del   () (interactive) (pry-align-process-mark) (term-send-del))
+(defun pry-send-backspace  () (interactive) (pry-align-process-mark) (term-send-backspace))
+(defun pry-send-raw-meta () (interactive) (pry-align-process-mark) (term-send-raw-meta))
+
+
 (defun pry-mode ()
   "Major mode for interacting with an inferior ruby (pry) process.
 
-\\{pry-mode-map}"
+\\{pry-raw-map}"
   (interactive)
   (term-mode)
   (setq term-scroll-show-maximum-output t)
   (setq term-scroll-to-bottom-on-output t)
-  (use-local-map pry-mode-map)
   (setq major-mode 'pry-mode)
   (setq mode-name "Pry")
   (make-local-variable 'term-raw-map)
+  (setq term-raw-map pry-raw-map)
+  ;; (make-local-variable 'pry-cursor-overlay)
+  ;; (when pry-cursor-overlay (delete-overlay pry-cursor-overlay))
+  ;; (setq pry-cursor-overlay (make-overlay (point-max) (point-max) nil t nil))
+  ;; (overlay-put pry-cursor-overlay 'face 'vcursor)
   (set (make-local-variable 'term-prompt-regexp) "^\\[[0-9]+\\] pry(.*)[>*] ")
-  (define-key term-raw-map "\C-x" 'Control-X-prefix)
   (term-char-mode))
 
 
@@ -121,79 +162,82 @@ of `pry-program-name').
                                                'pry-source-dir (symbol-function 'pry-source-dir))))))
 
 
-(defun pry-intercept (command &optional nonstop)
+(defun pry-intercept (arg &optional break-type)
   "Run ruby program intercepting using pry on the current line.
 
-With argument, allows you to edit the command line:
-  for argument:
-    0   edit command using previous command as default
-    ^U  edit command using current buffer as default
+With no prefix argument, use value from last run.
+With prefix argument of:
+   0,   edit command using previous command as default
+   ^U,  edit command using current buffer as default
+   string, Run pry-intercept with value of string
 
-Without argument, runs the last command.
+The optional argument BREAK-TYPE will set the pry breakpoint. for:
+   nil, use the current buffer and line
+   'rerun, use the buffer and line of the `pry-intercept'
+   'nonstop, don't set a breakpoint
 
-Use `pry-intercept-nonstop' if pry breakpoint is not wanted"
+See `pry-intercept-nonstop' and `pry-intercept-rerun'"
   (interactive "P")
-
-  (when (or (not pry-intercept-command) (and command (not (stringp command))))
-    (setq command 
-          (read-string "Run Pry: " (if (and pry-intercept-command (eq 0 command))
-                                       pry-intercept-command
-                                     (concat "ruby -I. " (buffer-file-name))))))
-
-  (if command 
-      (setq pry-intercept-command command)
-    (setq command pry-intercept-command))
-
-  (let* ((proc-buffer (get-buffer "*pry*"))
-         (proc (get-buffer-process proc-buffer))
-         (process-environment process-environment)
-         (main-prog-start (and (or (string-match " -- \\([^ ]+\\.rb\\)" command) (string-match " \\([^- ][^ ]+\\.rb\\)" command)) (match-beginning 1)))
-         (pid (number-to-string (emacs-pid)))
-         (fn (concat "/tmp/emacs_pry_" pid ".rb"))
-         source)
+  (let ((command
+         (if (or (not pry-intercept-command) (and arg (not (stringp arg))))
+             (read-string "Run Pry: " (if (and pry-intercept-command (eq 0 arg))
+                                          pry-intercept-command
+                                        (concat "ruby -I. " (buffer-file-name))))
+           (if (stringp arg) arg))))
     
-    (when (and (> (length buffer-file-name) 3) (string= (substring (buffer-file-name) -3) ".rb"))
-      (setq pry-target-buffer (current-buffer))
-      ;; fixme use property on buffer rather than pry-target-point because lines get deleted/added
-      (setq pry-target-point (line-beginning-position)))
+    (if command 
+        (setq pry-intercept-command command)
+      (setq command pry-intercept-command))
+    
+    (let* ((proc-buffer (get-buffer "*pry*"))
+           (proc (get-buffer-process proc-buffer))
+           (process-environment process-environment)
+           (main-prog-start (and (or (string-match " -- \\([^ ]+\\.rb\\)" command) (string-match " \\([^- ][^ ]+\\.rb\\)" command)) (match-beginning 1)))
+           (pid (number-to-string (emacs-pid)))
+           (fn (concat "/tmp/emacs_pry_" pid ".rb"))
+           source)
 
-    (unless pry-target-buffer (error "pry-intercept can only be run on ruby buffers"))
+      (unless (eq break-type 'rerun)
+        (if (and (> (length buffer-file-name) 3) (string= (substring (buffer-file-name) -3) ".rb"))
+            (if pry-target-mark
+                (move-marker pry-target-mark (line-beginning-position) (current-buffer))
+              (setq pry-target-mark (copy-marker (line-beginning-position))))
+          (error "pry-intercept can only be run on ruby buffers")))
 
-    (with-current-buffer pry-target-buffer
-      (when (> pry-target-point (1+ (buffer-size)))
-        (setq pry-target-point (1+ (buffer-size))))
-      (unless nonstop
-        (setq source (concat (buffer-substring 1 pry-target-point) "binding.pry;" (buffer-substring pry-target-point (1+ (buffer-size)))))
+      (with-current-buffer (marker-buffer pry-target-mark)
+        (unless (eq break-point 'nonstop)
+          (setq source (concat (buffer-substring 1 (marker-position pry-target-mark)) "binding.pry;" (buffer-substring (marker-position pry-target-mark) (1+ (buffer-size)))))
 
-        (write-region source nil fn)
+          (write-region source nil fn)
 
-        (unless main-prog-start
-          (error "Can't find ruby program name: %s" command))
+          (unless main-prog-start
+            (error "Can't find ruby program name: %s" command))
 
-        (setenv "_EMACS_MONKEY_PATCH" (concat pid ":" (buffer-file-name))))
+          (setenv "_EMACS_MONKEY_PATCH" (concat pid ":" (buffer-file-name))))
 
 
-      (setq command (concat (substring command 0 main-prog-start) (pry-source-dir) "ruby/emacs_pry.rb " (substring command main-prog-start))))
-          
+        (setq command (concat (substring command 0 main-prog-start) (pry-source-dir) "ruby/emacs_pry.rb " (substring command main-prog-start))))
       
-    (when (and proc (equal (process-status proc) 'run))
-      (set-process-sentinel proc nil)
-      (kill-process proc)
-      (accept-process-output proc 0.5))
-    (when proc-buffer 
-      (with-current-buffer proc-buffer
-        (delete-region 1 (1+ (buffer-size)))))
       
-    (run-pry command)))
+      (when (and proc (equal (process-status proc) 'run))
+        (set-process-sentinel proc nil)
+        (kill-process proc)
+        (accept-process-output proc 0.5))
+      (when proc-buffer 
+        (with-current-buffer proc-buffer
+          (delete-region 1 (1+ (buffer-size)))))
+      
+      (run-pry command))))
 
-(defun pry-intercept-nonstop (command)
-  "Same as `pry-intercept' but don't set pry breakpoint"
-  (interactive (list (if current-prefix-arg
-                         (read-string "Run Pry: " (concat "ruby -I. " (buffer-file-name)))
-                       pry-intercept-command)))
+(defun pry-intercept-nonstop (arg &optional break-point)
+  "Same as `pry-intercept' but don't set pry breakpoint by default"
+  (interactive "P")
+  (pry-intercept arg (or break-point 'nonstop)))
 
-  (pry-intercept command t))
-
+(defun pry-intercept-rerun (arg &optional break-point)
+  "Same as `pry-intercept' but rerun last intercept by default"
+  (interactive "P")
+  (pry-intercept arg (or break-point 'rerun)))
 
 (provide 'pry)
 

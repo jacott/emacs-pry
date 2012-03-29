@@ -1,4 +1,5 @@
-* Re-aligning process-mark with point using left and right if on input line. Otherwise show gost cursor (see 'vcursor)
+
+* Make key-maps change depending on cursor location to command prompt.
 
 * Better spliting of shell arglist strings to list/array
 
@@ -8,4 +9,19 @@
 * require_relative interception support for pry
    And load support?
 
-* exception highlighting and clickable
+* Exception highlighting and clickable
+
+* Customize pryrc loading: nil, t, string
+
+* Auto whereami buffer viewing
+   Visit one and only one buffer unless buffer already open but always move to point
+
+* Eval exp in pry
+   Send the current sexp to the *pry* buffer for evalulation. 
+   Do a "!\n" if pry-input not empty - look at proccess-mark, and displayed prompt to determine.
+
+
+
+DONE
+
+* Re-aligning process-mark with point using left and right if on input line.
