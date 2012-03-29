@@ -19,18 +19,21 @@ You can use the pointer or other emacs commands to move the cursor on the comman
 
 ### Install
 
-* `gem install pry`
+```bash
+$ gem install pry
+$ mkdir ~/.emacs.d/vendor
+$  ~/.emacs.d/vendor
+$ git clone git@github.com:jacott/emacs-pry
+```
 
-* `git clone git@github.com:jacott/emacs-pry`
-
-* Add the following to your `.emacs` or `init.el` file
+Add the following to your `.emacs` or `.emacs.d/init.el` file
 
 ```lisp
-    (add-to-list 'load-path "(path-to)/emacs-pry")
+    (add-to-list 'load-path "~/.emacs.d/vendor/emacs-pry")
     (require 'pry)
     ;; optional suggestions
-    (global-set-key [f9] 'pry-intercept)
-    (global-set-key [S-f9] 'pry-intercept-nonstop)
+    (global-set-key [S-f9] 'pry-intercept)
+    (global-set-key [f9] 'pry-intercept-rerun)
 ```
 
 ### Optional
