@@ -15,25 +15,27 @@ Emacs Pry is package that provides support for running [Pry](https://github.com/
 
 `pry-intercept` command allows for quick debuging into a test.
 
+Automatically shows source in emacs buffer.
+
 You can use the pointer or other emacs commands to move the cursor on the command line and Pry will be aligned with the new position.
 
 ### Install
 
-```bash
-$ gem install pry
-$ mkdir -p ~/.emacs.d/vendor
-$ cd ~/.emacs.d/vendor
-$ git clone git@github.com:jacott/emacs-pry
+```sh
+gem install pry
+mkdir -p ~/.emacs.d/vendor
+cd ~/.emacs.d/vendor
+git clone git@github.com:jacott/emacs-pry
 ```
 
 Add the following to your `.emacs` or `.emacs.d/init.el` file
 
 ```lisp
-    (add-to-list 'load-path "~/.emacs.d/vendor/emacs-pry")
-    (require 'pry)
-    ;; optional suggestions
-    (global-set-key [S-f9] 'pry-intercept)
-    (global-set-key [f9] 'pry-intercept-rerun)
+(add-to-list 'load-path "~/.emacs.d/vendor/emacs-pry")
+(require 'pry)
+;; optional suggestions
+(global-set-key [S-f9] 'pry-intercept)
+(global-set-key [f9] 'pry-intercept-rerun)
 ```
 
 ### Optional

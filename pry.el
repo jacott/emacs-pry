@@ -39,6 +39,11 @@
 (defvar pry-target-mark nil "Last target of pry-intercept.")
 
 (defvar pry-cursor-overlay nil "Overlay for process-mark location using `vcursor' face")
+(defvar pry-last-prompt (make-marker) "position of last displayed prompt")
+(set-marker-insertion-type pry-last-prompt nil)
+
+(defvar pry-source-location-regexp "^From: \\(.*\\.rb\\) @ line \\([0-9]+\\)" "Source location regular expression")
+(defvar pry-whereami (make-marker) "Location of last pry location")
 
 (if pry-raw-map
     nil
@@ -49,7 +54,9 @@
   (define-key pry-raw-map [remap term-send-left] 'pry-send-left)
   (define-key pry-raw-map [remap term-send-del] 'pry-send-del)
   (define-key pry-raw-map [remap term-send-backspace] 'pry-send-backspace)
-  (define-key pry-raw-map [remap term-send-raw-meta] 'pry-send-raw-meta))
+  (define-key pry-raw-map [remap term-send-raw-meta] 'pry-send-raw-meta)
+  (define-key pry-raw-map "\C-x" 'Control-X-prefix)
+  (define-key pry-raw-map "\M-x" 'execute-extended-command))
 
 
 
@@ -82,15 +89,16 @@ of `pry-program-name').
 
           
 
-          (setq proc (apply 'start-process "inferior-pry-process"
-                                    (current-buffer)
-                                    (car cmdlist) 
-                                    (cdr cmdlist)))
-          (set-process-coding-system proc 'binary 'binary)
-          (set-process-filter proc 'pry-filter)
-          (set-process-query-on-exit-flag proc nil)
-          (set-process-sentinel proc 'pry-process-sentinel)
-          (pry-mode)))
+        (pry-mode)
+        (setq proc (apply 'start-process "inferior-pry-process"
+                          (current-buffer)
+                          (car cmdlist) 
+                          (cdr cmdlist)))
+        (term-char-mode)
+        (set-process-coding-system proc 'binary 'binary)
+        (set-process-filter proc 'pry-filter)
+        (set-process-query-on-exit-flag proc nil)
+        (set-process-sentinel proc 'pry-process-sentinel)))
       (pop-to-buffer (current-buffer))
       proc)))
 
@@ -103,7 +111,54 @@ of `pry-program-name').
 
 
 (defun pry-filter (proc response)
-  (term-emulate-terminal proc response))
+  (term-emulate-terminal proc response)
+  (pry-search-for-source))
+
+(defun pry-select-file (file line)
+  (with-selected-window (selected-window)
+    ;; FIXME (message "%s:%d" file line)
+    (let* ((newbuf (find-buffer-visiting file))
+           (oldbuf (marker-buffer pry-whereami))
+           view-window)
+
+
+      (when oldbuf 
+        (when (setq view-window (get-buffer-window oldbuf))
+          (select-window view-window)))
+
+      (if newbuf
+          (unless view-window
+            (if (get-buffer-window newbuf)
+                (select-window (get-buffer-window newbuf))
+              (switch-to-buffer-other-window newbuf)
+              (get-buffer-window newbuf)))
+
+        (if view-window
+            (view-file file)
+          (view-file-other-window file))
+        (setq newbuf (find-buffer-visiting file)))
+
+      (when (and oldbuf (not (eq oldbuf newbuf)))
+        (with-current-buffer oldbuf 
+          (when view-mode 
+            (View-quit))))
+      
+      (with-current-buffer newbuf
+        (goto-char (point-min))
+        (forward-line (1- line))
+        (move-marker pry-whereami (point))))))
+
+(defun pry-search-for-source ()
+  (save-excursion
+    (goto-char pry-last-prompt)
+    (when (search-forward-regexp pry-source-location-regexp nil t)
+      (pry-select-file
+       (match-string-no-properties 1)
+       (string-to-number (match-string-no-properties 2))))
+      
+    (when (search-forward-regexp term-prompt-regexp nil t)
+      (move-marker pry-last-prompt (point)))))
+
 
 (defun pry-send-raw ()
   "Runs `term-send-raw' but first tries to align process-mark to point"
@@ -112,6 +167,7 @@ of `pry-program-name').
   (term-send-raw))
 
 (defun pry-align-process-mark ()
+  "Move the Pry process cursor left or right to align with point"
   (let* ((pt (marker-position (process-mark (get-buffer-process (current-buffer)))))
          (readline-pos (save-excursion
                          (goto-char (point-max))
@@ -145,13 +201,13 @@ of `pry-program-name').
   (setq major-mode 'pry-mode)
   (setq mode-name "Pry")
   (make-local-variable 'term-raw-map)
+  (move-marker pry-last-prompt (point-min))
   (setq term-raw-map pry-raw-map)
   ;; (make-local-variable 'pry-cursor-overlay)
   ;; (when pry-cursor-overlay (delete-overlay pry-cursor-overlay))
   ;; (setq pry-cursor-overlay (make-overlay (point-max) (point-max) nil t nil))
   ;; (overlay-put pry-cursor-overlay 'face 'vcursor)
-  (set (make-local-variable 'term-prompt-regexp) "^\\[[0-9]+\\] pry(.*)[>*] ")
-  (term-char-mode))
+  (set (make-local-variable 'term-prompt-regexp) "^\\[[0-9]+\\] pry(.*)[>*] "))
 
 
 (defvar pry-source-dir nil "Private variable.")
@@ -179,7 +235,7 @@ The optional argument BREAK-TYPE will set the pry breakpoint. for:
 See `pry-intercept-nonstop' and `pry-intercept-rerun'"
   (interactive "P")
   (let ((command
-         (if (or (not pry-intercept-command) (and arg (not (stringp arg))))
+         (if (and arg (not (stringp arg)))
              (read-string "Run Pry: " (if (and pry-intercept-command (eq 0 arg))
                                           pry-intercept-command
                                         (concat "ruby -I. " (buffer-file-name))))
@@ -205,7 +261,7 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
           (error "pry-intercept can only be run on ruby buffers")))
 
       (with-current-buffer (marker-buffer pry-target-mark)
-        (unless (eq break-point 'nonstop)
+        (unless (eq break-type 'nonstop)
           (setq source (concat (buffer-substring 1 (marker-position pry-target-mark)) "binding.pry;" (buffer-substring (marker-position pry-target-mark) (1+ (buffer-size)))))
 
           (write-region source nil fn)
@@ -229,15 +285,15 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
       
       (run-pry command))))
 
-(defun pry-intercept-nonstop (arg &optional break-point)
+(defun pry-intercept-nonstop (arg &optional break-type)
   "Same as `pry-intercept' but don't set pry breakpoint by default"
   (interactive "P")
-  (pry-intercept arg (or break-point 'nonstop)))
+  (pry-intercept arg (or break-type 'nonstop)))
 
-(defun pry-intercept-rerun (arg &optional break-point)
+(defun pry-intercept-rerun (arg &optional break-type)
   "Same as `pry-intercept' but rerun last intercept by default"
   (interactive "P")
-  (pry-intercept arg (or break-point 'rerun)))
+  (pry-intercept arg (or break-type 'rerun)))
 
 (provide 'pry)
 

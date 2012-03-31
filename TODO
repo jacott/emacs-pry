@@ -13,9 +13,6 @@
 
 * Customize pryrc loading: nil, t, string
 
-* Auto whereami buffer viewing
-   Visit one and only one buffer unless buffer already open but always move to point
-
 * Eval exp in pry
    Send the current sexp to the *pry* buffer for evalulation. 
    Do a "!\n" if pry-input not empty - look at proccess-mark, and displayed prompt to determine.
@@ -25,3 +22,7 @@
 DONE
 
 * Re-aligning process-mark with point using left and right if on input line.
+
+* Auto whereami buffer viewing
+   Visit one and only one buffer unless buffer already open but always move to point
+
