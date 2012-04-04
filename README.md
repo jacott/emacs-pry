@@ -13,7 +13,7 @@ Emacs Pry is package that provides support for running [Pry](https://github.com/
 
 `run-pry` starts a Pry REPL inside a modified `term-mode` buffer.
 
-`pry-intercept` command allows for quick debuging into a test.
+`pry-intercept` command allows for quick debuging into a test without needing to write the `binding.pry` into the file.
 
 Automatically shows source in emacs buffer.
 

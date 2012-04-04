@@ -196,7 +196,7 @@ of `pry-program-name').
 \\{pry-raw-map}"
   (interactive)
   (term-mode)
-  (setq term-scroll-show-maximum-output t)
+  (setq term-scroll-show-maximum-output nil)
   (setq term-scroll-to-bottom-on-output t)
   (setq major-mode 'pry-mode)
   (setq mode-name "Pry")
@@ -281,7 +281,7 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
         (accept-process-output proc 0.5))
       (when proc-buffer 
         (with-current-buffer proc-buffer
-          (delete-region 1 (1+ (buffer-size)))))
+          (erase-buffer)))
       
       (run-pry command))))
 
