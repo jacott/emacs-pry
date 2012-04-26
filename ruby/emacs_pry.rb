@@ -1,4 +1,7 @@
-require 'termios'
+begin
+  require 'termios'
+rescue LoadError
+end
 require 'pry'
 require 'pry-nav' rescue nil
 
@@ -16,79 +19,83 @@ def self._emacs_setup(main)
 
   ENV['TERM']='xterm' if !ENV['TERM'] || ENV['TERM'] == 'dumb'
 
-  class <<STDIN
-    include Termios
-  end
-
-  attrs=STDIN.tcgetattr
-
-  flag_map=[:iflag, :oflag, :cflag, :lflag].inject({}) do |h,sym|
-    for name in Termios::const_get "#{sym.to_s.upcase}_NAMES"
-      h[name]=sym
+  if defined? Termios
+    class <<STDIN
+      include Termios
     end
-    h
-  end
 
-  proc = ->(sym) do
-    off=sym[0]=="-"
-    sym=sym[1..-1] if off
-    sym=sym.upcase.to_sym
-    imode=flag_map[sym]
-    raise "#{sym} bad" unless imode
-    bit=::Termios.const_get(sym)
-    cval=attrs.send(imode)
-    if off
-      cval &= ~bit
-    else
-      cval |= bit
+    attrs=STDIN.tcgetattr
+
+    flag_map=[:iflag, :oflag, :cflag, :lflag].inject({}) do |h,sym|
+      for name in Termios::const_get "#{sym.to_s.upcase}_NAMES"
+        h[name]=sym
+      end
+      h
     end
-    attrs.send("#{imode}=",cval)
+
+    proc = ->(sym) do
+      off=sym[0]=="-"
+      sym=sym[1..-1] if off
+      sym=sym.upcase.to_sym
+      imode=flag_map[sym]
+      raise "#{sym} bad" unless imode
+      bit=::Termios.const_get(sym)
+      cval=attrs.send(imode)
+      if off
+        cval &= ~bit
+      else
+        cval |= bit
+      end
+      attrs.send("#{imode}=",cval)
+    end
+
+    # raw
+    # %w[-ignbrk -brkint -ignpar -parmrk -inpck -istrip -inlcr -igncr -icrnl  -ixon  -ixoff  -iuclc  -ixany -imaxbel -opost -isig -icanon -xcase].each do |sym|
+    #   proc.call(sym)
+    # end
+
+    # STDIN.tcsetattr(::Termios::TCSANOW, attrs)
+
+
+    # Pry.config.should_load_rc = false
+
+    # require "awesome_print"
+
+    # Pry.print = proc { |output, value| output.puts value.ai }
+
+
+    # sane
+    %w[cread -ignbrk brkint -inlcr -igncr icrnl -iutf8 -ixoff -iuclc -ixany imaxbel opost -olcuc -ocrnl onlcr
+    -onocr -onlret -ofill -ofdel nl0 cr0 tab0 bs0 vt0 ff0 isig icanon iexten  echo  echoe  echok  -echonl  -noflsh
+    -xcase -tostop -echoprt echoctl echoke].each do |sym|
+      proc.call(sym)
+    end
+
+    STDIN.tcsetattr(::Termios::TCSANOW, attrs)
+  else
+    system('stty sane')
   end
 
-  # raw
-  # %w[-ignbrk -brkint -ignpar -parmrk -inpck -istrip -inlcr -igncr -icrnl  -ixon  -ixoff  -iuclc  -ixany -imaxbel -opost -isig -icanon -xcase].each do |sym|
-  #   proc.call(sym)
-  # end
-
-  # STDIN.tcsetattr(::Termios::TCSANOW, attrs)
-
-
-  # Pry.config.should_load_rc = false
   Pry.config.color = true
 
-  # require "awesome_print"
+  $_emacs_pid, $_emacs_monkey_patch=(ENV['_EMACS_MONKEY_PATCH']||'').split(':')
+  if $_emacs_pid
+    fn="/tmp/emacs_pry_#{$_emacs_pid}.rb"
+    $_emacs_monkey_patch=File.expand_path($_emacs_monkey_patch)
 
-  # Pry.print = proc { |output, value| output.puts value.ai }
+    File.open(fn,"r") {|io| $_emacs_monkey_patch_source=io.read}
+    File.unlink(fn)
 
+    $0= ARGV.shift
 
-  # sane
-  %w[cread -ignbrk brkint -inlcr -igncr icrnl -iutf8 -ixoff -iuclc -ixany imaxbel opost -olcuc -ocrnl onlcr
-   -onocr -onlret -ofill -ofdel nl0 cr0 tab0 bs0 vt0 ff0 isig icanon iexten  echo  echoe  echok  -echonl  -noflsh
-   -xcase -tostop -echoprt echoctl echoke].each do |sym|
-    proc.call(sym)
+    if File.expand_path($0) == File.expand_path($_emacs_monkey_patch)
+      $0=$_emacs_monkey_patch_source
+      eval($_emacs_monkey_patch_source,main,$_emacs_monkey_patch)
+    else
+      require_relative 'monkey_patch_require'
+      load(File.expand_path($0))
+    end
   end
-
-   STDIN.tcsetattr(::Termios::TCSANOW, attrs)
-
-
-   $_emacs_pid, $_emacs_monkey_patch=(ENV['_EMACS_MONKEY_PATCH']||'').split(':')
-   if $_emacs_pid
-     fn="/tmp/emacs_pry_#{$_emacs_pid}.rb"
-     $_emacs_monkey_patch=File.expand_path($_emacs_monkey_patch)
-
-     File.open(fn,"r") {|io| $_emacs_monkey_patch_source=io.read}
-     File.unlink(fn)
-
-     $0= ARGV.shift
-
-     if File.expand_path($0) == File.expand_path($_emacs_monkey_patch)
-       $0=$_emacs_monkey_patch_source
-       eval($_emacs_monkey_patch_source,main,$_emacs_monkey_patch)
-     else
-       require_relative 'monkey_patch_require'
-       load(File.expand_path($0))
-     end
-   end
 end
 
 self._emacs_setup(binding)

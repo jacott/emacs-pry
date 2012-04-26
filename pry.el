@@ -28,6 +28,119 @@
 
 (require 'term)
 
+;; override standard term func
+(defun term-handle-ansi-escape (proc char)
+  (cond
+   ((or (eq char ?H)  ;; cursor motion (terminfo: cup,home)
+	;; (eq char ?f) ;; xterm seems to handle this sequence too, not
+	;; needed for now
+	)
+    (when (<= term-terminal-parameter 0)
+      (setq term-terminal-parameter 1))
+    (when (<= term-terminal-previous-parameter 0)
+      (setq term-terminal-previous-parameter 1))
+    (when (> term-terminal-previous-parameter term-height)
+      (setq term-terminal-previous-parameter term-height))
+    (when (> term-terminal-parameter term-width)
+      (setq term-terminal-parameter term-width))
+    (term-goto
+     (1- term-terminal-previous-parameter)
+     (1- term-terminal-parameter)))
+   ;; \E[A - cursor up (terminfo: cuu, cuu1)
+   ((eq char ?A)
+    (term-handle-deferred-scroll)
+    (let ((tcr (term-current-row)))
+      (term-down
+       (if (< (- tcr term-terminal-parameter) term-scroll-start)
+	   ;; If the amount to move is before scroll start, move
+	   ;; to scroll start.
+	   (- term-scroll-start tcr)
+	 (if (>= term-terminal-parameter tcr)
+	     (- tcr)
+	   (- (max 1 term-terminal-parameter)))) t)))
+   ;; \E[B - cursor down (terminfo: cud)
+   ((eq char ?B)
+    (let ((tcr (term-current-row)))
+      (unless (= tcr (1- term-scroll-end))
+	(term-down
+	 (if (> (+ tcr term-terminal-parameter) term-scroll-end)
+	     (- term-scroll-end 1 tcr)
+	   (max 1 term-terminal-parameter)) t))))
+   ;; \E[C - cursor right (terminfo: cuf, cuf1)
+   ((eq char ?C)
+    (term-move-columns
+     (max 1
+	  (if (>= (+ term-terminal-parameter (term-current-column)) term-width)
+	      (- term-width (term-current-column)  1)
+	    term-terminal-parameter))))
+   ;; \E[D - cursor left (terminfo: cub)
+   ((eq char ?D)
+    (term-move-columns (- (max 1 term-terminal-parameter))))
+   ;; \E[G - pry added not handled by term.el 
+   ((eq char ?G)
+    (forward-line term-terminal-parameter))
+   ;; \E[J - clear to end of screen (terminfo: ed, clear)
+   ((eq char ?J)
+    (term-erase-in-display term-terminal-parameter))
+   ;; \E[K - clear to end of line (terminfo: el, el1)
+   ((eq char ?K)
+    (term-erase-in-line term-terminal-parameter))
+   ;; \E[L - insert lines (terminfo: il, il1)
+   ((eq char ?L)
+    (term-insert-lines (max 1 term-terminal-parameter)))
+   ;; \E[M - delete lines (terminfo: dl, dl1)
+   ((eq char ?M)
+    (term-delete-lines (max 1 term-terminal-parameter)))
+   ;; \E[P - delete chars (terminfo: dch, dch1)
+   ((eq char ?P)
+    (term-delete-chars (max 1 term-terminal-parameter)))
+   ;; \E[@ - insert spaces (terminfo: ich)
+   ((eq char ?@)
+    (term-insert-spaces (max 1 term-terminal-parameter)))
+   ;; \E[?h - DEC Private Mode Set
+   ((eq char ?h)
+    (cond ((eq term-terminal-parameter 4)  ;; (terminfo: smir)
+	   (setq term-insert-mode t))
+	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: smcup)
+	  ;; (term-switch-to-alternate-sub-buffer t))
+	  ))
+   ;; \E[?l - DEC Private Mode Reset
+   ((eq char ?l)
+    (cond ((eq term-terminal-parameter 4)  ;; (terminfo: rmir)
+	   (setq term-insert-mode nil))
+	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: rmcup)
+	  ;; (term-switch-to-alternate-sub-buffer nil))
+	  ))
+
+   ;; Modified to allow ansi coloring -mm
+   ;; \E[m - Set/reset modes, set bg/fg
+   ;;(terminfo: smso,rmso,smul,rmul,rev,bold,sgr0,invis,op,setab,setaf)
+   ((eq char ?m)
+    (when (= term-terminal-more-parameters 1)
+      (when (>= term-terminal-previous-parameter-4 0)
+	(term-handle-colors-array term-terminal-previous-parameter-4))
+      (when (>= term-terminal-previous-parameter-3 0)
+	(term-handle-colors-array term-terminal-previous-parameter-3))
+      (when (>= term-terminal-previous-parameter-2 0)
+	(term-handle-colors-array term-terminal-previous-parameter-2))
+      (term-handle-colors-array term-terminal-previous-parameter))
+    (term-handle-colors-array term-terminal-parameter))
+
+   ;; \E[6n - Report cursor position (terminfo: u7)
+   ((eq char ?n)
+    (term-handle-deferred-scroll)
+    (process-send-string proc
+			 ;; (terminfo: u6)
+			 (format "\e[%s;%sR"
+				 (1+ (term-current-row))
+				 (1+ (term-horizontal-column)))))
+   ;; \E[r - Set scrolling region (terminfo: csr)
+   ((eq char ?r)
+    (term-set-scroll-region
+     (1- term-terminal-previous-parameter)
+     (1- term-terminal-parameter)))
+   (t)))
+
 (defcustom pry-program-name "pry"
   "Program invoked by the `run-pry' command."
   :group 'eri)
@@ -116,7 +229,6 @@ of `pry-program-name').
 
 (defun pry-select-file (file line)
   (with-selected-window (selected-window)
-    ;; FIXME (message "%s:%d" file line)
     (let* ((newbuf (find-buffer-visiting file))
            (oldbuf (marker-buffer pry-whereami))
            view-window)
@@ -130,8 +242,7 @@ of `pry-program-name').
           (unless view-window
             (if (get-buffer-window newbuf)
                 (select-window (get-buffer-window newbuf))
-              (switch-to-buffer-other-window newbuf)
-              (get-buffer-window newbuf)))
+              (switch-to-buffer-other-window newbuf)))
 
         (if view-window
             (view-file file)

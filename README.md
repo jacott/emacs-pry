@@ -40,7 +40,8 @@ Add the following to your `.emacs` or `.emacs.d/init.el` file
 
 ### Optional
 
-* gem install pry-nav pry-stack_explorer
+* `gem install pry-nav pry-stack_explorer`
+* `gem install termios # replaces the running of: stty sane`
 
 * https://github.com/jacott/Enhanced-Ruby-Mode
 
