@@ -9,6 +9,8 @@ class <<$_emacs_monkey_patch
         }
 
         eval($_emacs_monkey_patch_source,@main,self)
+        alias require_relative emacs_monkey_patch_original_require_relative
+        undef emacs_monkey_patch_original_require_relative
       end
     end
   end
@@ -25,9 +27,14 @@ $_emacs_monkey_patch.send(:_init,binding)
 
 module ::Kernel
   alias emacs_monkey_patch_original_require require
+  alias emacs_monkey_patch_original_require_relative require_relative
 
   def require path
     emacs_monkey_patch_original_require(path) || $_emacs_monkey_patch.check(path)
+  end
+
+  def require_relative path
+    require File.expand_path(path,File.dirname(caller.first.split(':').first))
   end
 
   private :require, :emacs_monkey_patch_original_require

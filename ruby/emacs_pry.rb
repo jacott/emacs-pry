@@ -9,6 +9,7 @@ require 'pry-nav' rescue nil
 module Kernel
   def fixme(*args)
     STDOUT.puts args.inspect
+    STDOUT.flush
   end
 end
 
@@ -88,12 +89,18 @@ def self._emacs_setup(main)
 
     $0= ARGV.shift
 
+    require_relative 'monkey_patch_require'
     if File.expand_path($0) == File.expand_path($_emacs_monkey_patch)
       $0=$_emacs_monkey_patch_source
       eval($_emacs_monkey_patch_source,main,$_emacs_monkey_patch)
     else
-      require_relative 'monkey_patch_require'
       load(File.expand_path($0))
+      ::Kernel.class_exec {
+        alias require emacs_monkey_patch_original_require
+        undef emacs_monkey_patch_original_require
+        alias require_relative emacs_monkey_patch_original_require_relative
+        undef emacs_monkey_patch_original_require_relative
+      }
     end
   end
 end
