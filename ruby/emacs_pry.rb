@@ -18,7 +18,7 @@ def self._emacs_setup(main)
     undef _emacs_setup
   end
 
-  ENV['TERM']='xterm' if !ENV['TERM'] || ENV['TERM'] == 'dumb'
+  ENV['TERM']='eterm-color'
 
   if defined? Termios
     class <<STDIN
