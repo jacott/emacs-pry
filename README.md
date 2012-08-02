@@ -1,7 +1,7 @@
 # Emacs Pry
 
 * Git: http://github.com/jacott/emacs-pry
-* Author: Geoff Jacobsen   
+* Author: Geoff Jacobsen
 * Copyright: 2012
 * License: GNU GPLv3
 
@@ -20,6 +20,8 @@ Automatically shows source in emacs buffer.
 You can use the pointer or other emacs commands to move the cursor on the command line and Pry will be aligned with the new position.
 
 ### Install
+
+Ensure you are running ruby 1.9.3 or later
 
 ```sh
 gem install pry

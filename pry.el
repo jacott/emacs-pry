@@ -202,34 +202,44 @@ of `pry-program-name').
 
           
 
-        (pry-mode)
         (setq proc (apply 'start-process "inferior-pry-process"
                           (current-buffer)
                           (car cmdlist) 
                           (cdr cmdlist)))
-        (term-char-mode)
-        (set-process-coding-system proc 'binary 'binary)
-        (set-process-filter proc 'pry-filter)
+        (set-process-sentinel proc 'pry-process-sentinel)
         (set-process-query-on-exit-flag proc nil)
-        (set-process-sentinel proc 'pry-process-sentinel)))
+        (pry-setup-buffer proc)
+        (set-process-filter proc 'pry-filter)))
+      
       (pop-to-buffer (current-buffer))
       proc)))
 
+(defun pry-setup-buffer (proc)
+  (pry-mode)
+  (goto-char (point-max))
+  (set-marker (process-mark proc) (point))
+  (term-char-mode)
+  (set-process-coding-system proc 'binary 'binary))
+
 
 (defun pry-process-sentinel (proc msg)
-  (when (eq (current-buffer) (get-buffer "*pry*"))
-    (when (memq (process-status proc) '(exit signal))
-      (term-line-mode))
-    (insert msg)))
+;  (when (eq (current-buffer) (get-buffer "*pry*"))
+  (when (memq (process-status proc) '(exit signal))
+    (term-line-mode))
+  (insert msg))
 
 
 (defun pry-filter (proc response)
-  (term-emulate-terminal proc response)
-  (pry-search-for-source))
+  (with-current-buffer (process-buffer proc)
+    (let ((buffer-read-only nil)
+          (buffer-undo-list t))
+      (term-emulate-terminal proc response))
+    (pry-search-for-source)))
 
 (defun pry-select-file (file line)
   (with-selected-window (selected-window)
-    (let* ((newbuf (find-buffer-visiting file))
+    (let* ((file (expand-file-name file))
+           (newbuf (find-buffer-visiting file))
            (oldbuf (marker-buffer pry-whereami))
            view-window)
 
@@ -247,7 +257,7 @@ of `pry-program-name').
         (if view-window
             (view-file file)
           (view-file-other-window file))
-        (setq newbuf (find-buffer-visiting file)))
+        (setq newbuf (current-buffer)))
 
       (when (and oldbuf (not (eq oldbuf newbuf)))
         (with-current-buffer oldbuf 
@@ -265,7 +275,10 @@ of `pry-program-name').
     (when (search-forward-regexp pry-source-location-regexp nil t)
       (pry-select-file
        (match-string-no-properties 1)
-       (string-to-number (match-string-no-properties 2))))
+       (let ((line (string-to-number (match-string-no-properties 2))))
+         (if (search-forward-regexp "^ => +\\([0-a]+\\):" nil t)
+             (string-to-number (match-string-no-properties 1))
+           line))))
       
     (when (search-forward-regexp term-prompt-regexp nil t)
       (move-marker pry-last-prompt (point)))))
@@ -359,7 +372,7 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
     (let* ((proc-buffer (get-buffer "*pry*"))
            (proc (get-buffer-process proc-buffer))
            (process-environment process-environment)
-           (main-prog-start (and (or (string-match " -- \\([^ ]+\\.rb\\)" command) (string-match " \\([^- ][^ ]+\\.rb\\)" command)) (match-beginning 1)))
+           (main-prog-start (and (or (string-match " -- \\([^ ]+\\.rb\\)" command) (string-match " \\([^- ][^ ]*\\.rb\\)" command)) (match-beginning 1)))
            (pid (number-to-string (emacs-pid)))
            (fn (concat "/tmp/emacs_pry_" pid ".rb"))
            source)
@@ -392,7 +405,9 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
         (accept-process-output proc 0.5))
       (when proc-buffer 
         (with-current-buffer proc-buffer
-          (erase-buffer)))
+          (setq buffer-undo-list t)
+          (erase-buffer)
+          (setq buffer-undo-list nil)))
       
       (run-pry command))))
 
