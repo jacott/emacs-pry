@@ -29,117 +29,117 @@
 (require 'term)
 
 ;; override standard term func
-(defun term-handle-ansi-escape (proc char)
-  (cond
-   ((or (eq char ?H)  ;; cursor motion (terminfo: cup,home)
-	;; (eq char ?f) ;; xterm seems to handle this sequence too, not
-	;; needed for now
-	)
-    (when (<= term-terminal-parameter 0)
-      (setq term-terminal-parameter 1))
-    (when (<= term-terminal-previous-parameter 0)
-      (setq term-terminal-previous-parameter 1))
-    (when (> term-terminal-previous-parameter term-height)
-      (setq term-terminal-previous-parameter term-height))
-    (when (> term-terminal-parameter term-width)
-      (setq term-terminal-parameter term-width))
-    (term-goto
-     (1- term-terminal-previous-parameter)
-     (1- term-terminal-parameter)))
-   ;; \E[A - cursor up (terminfo: cuu, cuu1)
-   ((eq char ?A)
-    (term-handle-deferred-scroll)
-    (let ((tcr (term-current-row)))
-      (term-down
-       (if (< (- tcr term-terminal-parameter) term-scroll-start)
-	   ;; If the amount to move is before scroll start, move
-	   ;; to scroll start.
-	   (- term-scroll-start tcr)
-	 (if (>= term-terminal-parameter tcr)
-	     (- tcr)
-	   (- (max 1 term-terminal-parameter)))) t)))
-   ;; \E[B - cursor down (terminfo: cud)
-   ((eq char ?B)
-    (let ((tcr (term-current-row)))
-      (unless (= tcr (1- term-scroll-end))
-	(term-down
-	 (if (> (+ tcr term-terminal-parameter) term-scroll-end)
-	     (- term-scroll-end 1 tcr)
-	   (max 1 term-terminal-parameter)) t))))
-   ;; \E[C - cursor right (terminfo: cuf, cuf1)
-   ((eq char ?C)
-    (term-move-columns
-     (max 1
-	  (if (>= (+ term-terminal-parameter (term-current-column)) term-width)
-	      (- term-width (term-current-column)  1)
-	    term-terminal-parameter))))
-   ;; \E[D - cursor left (terminfo: cub)
-   ((eq char ?D)
-    (term-move-columns (- (max 1 term-terminal-parameter))))
-   ;; \E[G - pry added not handled by term.el 
-   ((eq char ?G)
-    (forward-line term-terminal-parameter))
-   ;; \E[J - clear to end of screen (terminfo: ed, clear)
-   ((eq char ?J)
-    (term-erase-in-display term-terminal-parameter))
-   ;; \E[K - clear to end of line (terminfo: el, el1)
-   ((eq char ?K)
-    (term-erase-in-line term-terminal-parameter))
-   ;; \E[L - insert lines (terminfo: il, il1)
-   ((eq char ?L)
-    (term-insert-lines (max 1 term-terminal-parameter)))
-   ;; \E[M - delete lines (terminfo: dl, dl1)
-   ((eq char ?M)
-    (term-delete-lines (max 1 term-terminal-parameter)))
-   ;; \E[P - delete chars (terminfo: dch, dch1)
-   ((eq char ?P)
-    (term-delete-chars (max 1 term-terminal-parameter)))
-   ;; \E[@ - insert spaces (terminfo: ich)
-   ((eq char ?@)
-    (term-insert-spaces (max 1 term-terminal-parameter)))
-   ;; \E[?h - DEC Private Mode Set
-   ((eq char ?h)
-    (cond ((eq term-terminal-parameter 4)  ;; (terminfo: smir)
-	   (setq term-insert-mode t))
-	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: smcup)
-	  ;; (term-switch-to-alternate-sub-buffer t))
-	  ))
-   ;; \E[?l - DEC Private Mode Reset
-   ((eq char ?l)
-    (cond ((eq term-terminal-parameter 4)  ;; (terminfo: rmir)
-	   (setq term-insert-mode nil))
-	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: rmcup)
-	  ;; (term-switch-to-alternate-sub-buffer nil))
-	  ))
+;; (defun term-handle-ansi-escape (proc char)
+;;   (cond
+;;    ((or (eq char ?H)  ;; cursor motion (terminfo: cup,home)
+;; 	;; (eq char ?f) ;; xterm seems to handle this sequence too, not
+;; 	;; needed for now
+;; 	)
+;;     (when (<= term-terminal-parameter 0)
+;;       (setq term-terminal-parameter 1))
+;;     (when (<= term-terminal-previous-parameter 0)
+;;       (setq term-terminal-previous-parameter 1))
+;;     (when (> term-terminal-previous-parameter term-height)
+;;       (setq term-terminal-previous-parameter term-height))
+;;     (when (> term-terminal-parameter term-width)
+;;       (setq term-terminal-parameter term-width))
+;;     (term-goto
+;;      (1- term-terminal-previous-parameter)
+;;      (1- term-terminal-parameter)))
+;;    ;; \E[A - cursor up (terminfo: cuu, cuu1)
+;;    ((eq char ?A)
+;;     (term-handle-deferred-scroll)
+;;     (let ((tcr (term-current-row)))
+;;       (term-down
+;;        (if (< (- tcr term-terminal-parameter) term-scroll-start)
+;; 	   ;; If the amount to move is before scroll start, move
+;; 	   ;; to scroll start.
+;; 	   (- term-scroll-start tcr)
+;; 	 (if (>= term-terminal-parameter tcr)
+;; 	     (- tcr)
+;; 	   (- (max 1 term-terminal-parameter)))) t)))
+;;    ;; \E[B - cursor down (terminfo: cud)
+;;    ((eq char ?B)
+;;     (let ((tcr (term-current-row)))
+;;       (unless (= tcr (1- term-scroll-end))
+;; 	(term-down
+;; 	 (if (> (+ tcr term-terminal-parameter) term-scroll-end)
+;; 	     (- term-scroll-end 1 tcr)
+;; 	   (max 1 term-terminal-parameter)) t))))
+;;    ;; \E[C - cursor right (terminfo: cuf, cuf1)
+;;    ((eq char ?C)
+;;     (term-move-columns
+;;      (max 1
+;; 	  (if (>= (+ term-terminal-parameter (term-current-column)) term-width)
+;; 	      (- term-width (term-current-column)  1)
+;; 	    term-terminal-parameter))))
+;;    ;; \E[D - cursor left (terminfo: cub)
+;;    ((eq char ?D)
+;;     (term-move-columns (- (max 1 term-terminal-parameter))))
+;;    ;; \E[G - pry added not handled by term.el
+;;    ((eq char ?G)
+;;     (forward-line term-terminal-parameter))
+;;    ;; \E[J - clear to end of screen (terminfo: ed, clear)
+;;    ((eq char ?J)
+;;     (term-erase-in-display term-terminal-parameter))
+;;    ;; \E[K - clear to end of line (terminfo: el, el1)
+;;    ((eq char ?K)
+;;     (term-erase-in-line term-terminal-parameter))
+;;    ;; \E[L - insert lines (terminfo: il, il1)
+;;    ((eq char ?L)
+;;     (term-insert-lines (max 1 term-terminal-parameter)))
+;;    ;; \E[M - delete lines (terminfo: dl, dl1)
+;;    ((eq char ?M)
+;;     (term-delete-lines (max 1 term-terminal-parameter)))
+;;    ;; \E[P - delete chars (terminfo: dch, dch1)
+;;    ((eq char ?P)
+;;     (term-delete-chars (max 1 term-terminal-parameter)))
+;;    ;; \E[@ - insert spaces (terminfo: ich)
+;;    ((eq char ?@)
+;;     (term-insert-spaces (max 1 term-terminal-parameter)))
+;;    ;; \E[?h - DEC Private Mode Set
+;;    ((eq char ?h)
+;;     (cond ((eq term-terminal-parameter 4)  ;; (terminfo: smir)
+;; 	   (setq term-insert-mode t))
+;; 	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: smcup)
+;; 	  ;; (term-switch-to-alternate-sub-buffer t))
+;; 	  ))
+;;    ;; \E[?l - DEC Private Mode Reset
+;;    ((eq char ?l)
+;;     (cond ((eq term-terminal-parameter 4)  ;; (terminfo: rmir)
+;; 	   (setq term-insert-mode nil))
+;; 	  ;; ((eq term-terminal-parameter 47) ;; (terminfo: rmcup)
+;; 	  ;; (term-switch-to-alternate-sub-buffer nil))
+;; 	  ))
 
-   ;; Modified to allow ansi coloring -mm
-   ;; \E[m - Set/reset modes, set bg/fg
-   ;;(terminfo: smso,rmso,smul,rmul,rev,bold,sgr0,invis,op,setab,setaf)
-   ((eq char ?m)
-    (when (= term-terminal-more-parameters 1)
-      (when (>= term-terminal-previous-parameter-4 0)
-	(term-handle-colors-array term-terminal-previous-parameter-4))
-      (when (>= term-terminal-previous-parameter-3 0)
-	(term-handle-colors-array term-terminal-previous-parameter-3))
-      (when (>= term-terminal-previous-parameter-2 0)
-	(term-handle-colors-array term-terminal-previous-parameter-2))
-      (term-handle-colors-array term-terminal-previous-parameter))
-    (term-handle-colors-array term-terminal-parameter))
+;;    ;; Modified to allow ansi coloring -mm
+;;    ;; \E[m - Set/reset modes, set bg/fg
+;;    ;;(terminfo: smso,rmso,smul,rmul,rev,bold,sgr0,invis,op,setab,setaf)
+;;    ((eq char ?m)
+;;     (when (= term-terminal-more-parameters 1)
+;;       (when (>= term-terminal-previous-parameter-4 0)
+;; 	(term-handle-colors-array term-terminal-previous-parameter-4))
+;;       (when (>= term-terminal-previous-parameter-3 0)
+;; 	(term-handle-colors-array term-terminal-previous-parameter-3))
+;;       (when (>= term-terminal-previous-parameter-2 0)
+;; 	(term-handle-colors-array term-terminal-previous-parameter-2))
+;;       (term-handle-colors-array term-terminal-previous-parameter))
+;;     (term-handle-colors-array term-terminal-parameter))
 
-   ;; \E[6n - Report cursor position (terminfo: u7)
-   ((eq char ?n)
-    (term-handle-deferred-scroll)
-    (process-send-string proc
-			 ;; (terminfo: u6)
-			 (format "\e[%s;%sR"
-				 (1+ (term-current-row))
-				 (1+ (term-horizontal-column)))))
-   ;; \E[r - Set scrolling region (terminfo: csr)
-   ((eq char ?r)
-    (term-set-scroll-region
-     (1- term-terminal-previous-parameter)
-     (1- term-terminal-parameter)))
-   (t)))
+;;    ;; \E[6n - Report cursor position (terminfo: u7)
+;;    ((eq char ?n)
+;;     (term-handle-deferred-scroll)
+;;     (process-send-string proc
+;; 			 ;; (terminfo: u6)
+;; 			 (format "\e[%s;%sR"
+;; 				 (1+ (term-current-row))
+;; 				 (1+ (term-horizontal-column)))))
+;;    ;; \E[r - Set scrolling region (terminfo: csr)
+;;    ((eq char ?r)
+;;     (term-set-scroll-region
+;;      (1- term-terminal-previous-parameter)
+;;      (1- term-terminal-parameter)))
+;;    (t)))
 
 (defcustom pry-program-name "pry"
   "Program invoked by the `run-pry' command."
@@ -177,14 +177,14 @@
   "Run an inferior Pry process, input and output via buffer *pry*.
 If there is a process already running in `*pry*', switch to that buffer.
 With argument, allows you to edit the command line (default is value
-of `pry-program-name').  
+of `pry-program-name').
 \(See `pry-mode' for a list of commands.)"
 
   (interactive (list (if current-prefix-arg
                          (read-string "Run Pry: " pry-program-name)
                          pry-program-name)))
 
-  
+
 
   (with-current-buffer (get-buffer-create "*pry*")
     (let ((proc (get-buffer-process (current-buffer))))
@@ -200,17 +200,17 @@ of `pry-program-name').
         (if (string= pry-program-name cmd)
             (setq cmdlist (apply 'list (car cmdlist) (concat "-r" (pry-source-dir) "ruby/emacs_pry.rb") (cdr cmdlist))))
 
-          
+
 
         (setq proc (apply 'start-process "inferior-pry-process"
                           (current-buffer)
-                          (car cmdlist) 
+                          (car cmdlist)
                           (cdr cmdlist)))
         (set-process-sentinel proc 'pry-process-sentinel)
         (set-process-query-on-exit-flag proc nil)
         (pry-setup-buffer proc)
         (set-process-filter proc 'pry-filter)))
-      
+
       (pop-to-buffer (current-buffer))
       proc)))
 
@@ -244,7 +244,7 @@ of `pry-program-name').
            view-window)
 
 
-      (when oldbuf 
+      (when oldbuf
         (when (setq view-window (get-buffer-window oldbuf))
           (select-window view-window)))
 
@@ -260,10 +260,10 @@ of `pry-program-name').
         (setq newbuf (current-buffer)))
 
       (when (and oldbuf (not (eq oldbuf newbuf)))
-        (with-current-buffer oldbuf 
-          (when view-mode 
+        (with-current-buffer oldbuf
+          (when view-mode
             (View-quit))))
-      
+
       (with-current-buffer newbuf
         (goto-char (point-min))
         (forward-line (1- line))
@@ -279,7 +279,7 @@ of `pry-program-name').
          (if (search-forward-regexp "^ => +\\([0-a]+\\):" nil t)
              (string-to-number (match-string-no-properties 1))
            line))))
-      
+
     (when (search-forward-regexp term-prompt-regexp nil t)
       (move-marker pry-last-prompt (point)))))
 
@@ -338,7 +338,7 @@ of `pry-program-name').
 
 (defun pry-source-dir ()
   (or pry-source-dir
-    (setq pry-source-dir (file-name-directory (find-lisp-object-file-name 
+    (setq pry-source-dir (file-name-directory (find-lisp-object-file-name
                                                'pry-source-dir (symbol-function 'pry-source-dir))))))
 
 
@@ -364,11 +364,11 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
                                           pry-intercept-command
                                         (concat "ruby -I. " (buffer-file-name))))
            (if (stringp arg) arg))))
-    
-    (if command 
+
+    (if command
         (setq pry-intercept-command command)
       (setq command pry-intercept-command))
-    
+
     (let* ((proc-buffer (get-buffer "*pry*"))
            (proc (get-buffer-process proc-buffer))
            (process-environment process-environment)
@@ -397,18 +397,18 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
 
 
         (setq command (concat (substring command 0 main-prog-start) (pry-source-dir) "ruby/emacs_pry.rb " (substring command main-prog-start))))
-      
-      
+
+
       (when (and proc (equal (process-status proc) 'run))
         (set-process-sentinel proc nil)
         (kill-process proc)
         (accept-process-output proc 0.5))
-      (when proc-buffer 
+      (when proc-buffer
         (with-current-buffer proc-buffer
           (setq buffer-undo-list t)
           (erase-buffer)
           (setq buffer-undo-list nil)))
-      
+
       (run-pry command))))
 
 (defun pry-intercept-nonstop (arg &optional break-type)
@@ -422,4 +422,3 @@ See `pry-intercept-nonstop' and `pry-intercept-rerun'"
   (pry-intercept arg (or break-type 'rerun)))
 
 (provide 'pry)
-
