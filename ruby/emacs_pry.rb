@@ -5,13 +5,13 @@ end
 require 'pry'
 require 'pry-nav' rescue nil
 
-# FIXME
-module Kernel
-  def fixme(*args)
-    STDOUT.puts args.inspect
-    STDOUT.flush
-  end
-end
+# # FIXME
+# module Kernel
+#   def fixme(*args)
+#     STDOUT.puts args.inspect
+#     STDOUT.flush
+#   end
+# end
 
 def self._emacs_setup(main)
   class <<self
@@ -39,15 +39,16 @@ def self._emacs_setup(main)
       sym=sym[1..-1] if off
       sym=sym.upcase.to_sym
       imode=flag_map[sym]
-      raise "#{sym} bad" unless imode
-      bit=::Termios.const_get(sym)
-      cval=attrs.send(imode)
-      if off
-        cval &= ~bit
-      else
-        cval |= bit
+      if imode
+        bit=::Termios.const_get(sym)
+        cval=attrs.send(imode)
+        if off
+          cval &= ~bit
+        else
+          cval |= bit
+        end
+        attrs.send("#{imode}=",cval)
       end
-      attrs.send("#{imode}=",cval)
     end
 
     # raw
@@ -106,4 +107,3 @@ def self._emacs_setup(main)
 end
 
 self._emacs_setup(binding)
-
