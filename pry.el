@@ -359,7 +359,7 @@ The optional argument BREAK-TYPE will set the pry breakpoint. for:
 See `pry-intercept-nonstop' and `pry-intercept-rerun'"
   (interactive "P")
   (let ((command
-         (if (and arg (not (stringp arg)))
+         (if (or (and arg (not (stringp arg))) (not (or arg pry-intercept-command)))
              (read-string "Run Pry: " (if (and pry-intercept-command (eq 0 arg))
                                           pry-intercept-command
                                         (concat "ruby -I. " (buffer-file-name))))
